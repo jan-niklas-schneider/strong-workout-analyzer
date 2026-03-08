@@ -1,43 +1,130 @@
-body {
-
-font-family: system-ui;
-max-width: 1100px;
-margin: auto;
-padding: 25px;
-
+* {
+  box-sizing: border-box;
 }
 
-h1 {
-margin-bottom: 10px;
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f6f7f9;
+  color: #111827;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header p {
+  color: #4b5563;
+  margin-top: 8px;
+}
+
+h1, h2, h3 {
+  margin: 0 0 12px;
+}
+
+section {
+  margin-top: 28px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: end;
 }
 
 .upload {
-margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+
+label {
+  font-weight: 600;
 }
 
 button {
-
-padding: 10px 20px;
-font-size: 16px;
-cursor: pointer;
-
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 18px;
+  background: #111827;
+  color: white;
+  cursor: pointer;
+  font-size: 15px;
 }
 
-#exerciseList button {
+button:hover {
+  opacity: 0.92;
+}
 
-margin: 6px;
-padding: 8px 12px;
+.status {
+  color: #4b5563;
+  min-height: 20px;
+}
 
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid.two {
+  grid-template-columns: 1fr;
 }
 
 .chart {
-
-margin-top: 40px;
-
+  min-height: 280px;
 }
 
-#exerciseCharts {
+.hidden {
+  display: none;
+}
 
-margin-top: 40px;
+.table-wrap {
+  overflow-x: auto;
+}
 
+.exercise-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.exercise-table th,
+.exercise-table td {
+  border-bottom: 1px solid #edf0f3;
+  padding: 10px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.exercise-table tbody tr {
+  cursor: pointer;
+}
+
+.exercise-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.exercise-table tbody tr.active {
+  background: #eef4ff;
+}
+
+.muted {
+  color: #6b7280;
+}
+
+@media (min-width: 900px) {
+  .grid.two {
+    grid-template-columns: 1fr 1fr;
+  }
 }
