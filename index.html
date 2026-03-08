@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Workout Analyzer</title>
+
+<!-- Plotly for charts -->
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+<!-- CSV parser -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<link rel="stylesheet" href="styles.css">
+
+</head>
+
+<body>
+
+<h1>Workout Analyzer</h1>
+
+<p>Upload your Strong CSV exports to analyze workouts and bodyweight.</p>
+
+<div class="upload">
+
+<label for="workoutsFile">Workouts CSV</label><br>
+<input type="file" id="workoutsFile" accept=".csv">
+
+</div>
+
+<div class="upload">
+
+<label for="weightFile">Bodyweight CSV (optional)</label><br>
+<input type="file" id="weightFile" accept=".csv">
+
+</div>
+
+<button id="analyzeBtn">Analyze</button>
+
+<hr>
+
+<h2>Overview</h2>
+
+<div id="workoutsPerWeek" class="chart"></div>
+<div id="volumePerWeek" class="chart"></div>
+<div id="weightChart" class="chart"></div>
+
+<h2>Exercises</h2>
+
+<div id="exerciseList"></div>
+
+<div id="exerciseCharts"></div>
+
+<script src="app.js"></script>
+
+</body>
+
+</html>
