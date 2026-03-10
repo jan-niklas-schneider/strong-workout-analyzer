@@ -10,13 +10,13 @@ The application is deployed with **GitHub Pages**.
 
 Open it here:
 
-https://USERNAME.github.io/strong-workout-analyzer/
+https://jan-niklas-schneider.github.io/strong-workout-analyzer/
 
 ## QR Code
 
 Scan this QR code to open the app on your phone.
 
-![QR Code](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://USERNAME.github.io/strong-workout-analyzer/)
+![QR Code](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://jan-niklas-schneider.github.io/strong-workout-analyzer/)
 
 ## Features
 
@@ -46,13 +46,13 @@ All processing happens locally in the browser.
 
 ## Project Structure
 
-
+```
 .
 ├── index.html # main page
 ├── styles.css # styling
 ├── app.js # application logic
 └── .nojekyll # required for GitHub Pages
-
+```
 
 ## Development
 
@@ -65,7 +65,9 @@ index.html
 or start a small local server:
 
 
+```
 python -m http.server
+```
 
 
 Then open:
@@ -81,7 +83,7 @@ Deployment is done automatically via **GitHub Pages** from the `main` branch.
 The live site is available at:
 
 
-https://USERNAME.github.io/strong-workout-analyzer/
+https://jan-niklas-schneider.github.io/strong-workout-analyzer/
 
 
 ## License
