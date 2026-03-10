@@ -83,7 +83,9 @@ button:hover {
 }
 
 .chart {
-  min-height: 280px;
+  min-height: 320px;
+  width: 100%;
+  overflow: hidden;
 }
 
 .hidden {
@@ -123,8 +125,95 @@ button:hover {
   color: #6b7280;
 }
 
-@media (min-width: 900px) {
+.exercise-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.exercise-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.exercise-list-card {
+  min-width: 0;
+}
+
+.exercise-list-header {
+  margin-bottom: 12px;
+}
+
+.exercise-selector-card {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+}
+
+.exercise-selector-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exercise-selector-row select {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: white;
+  font-size: 15px;
+}
+
+.chart .js-plotly-plot,
+.chart .plot-container,
+.chart .svg-container {
+  width: 100% !important;
+}
+
+.chart .modebar {
+  right: 8px !important;
+  top: 8px !important;
+  transform: scale(0.95);
+  transform-origin: top right;
+}
+
+@media (min-width: 768px) {
   .grid.two {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .exercise-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .exercise-selector-card {
+    position: static;
+  }
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: 14px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .chart {
+    min-height: 280px;
+  }
+
+  .exercise-table th,
+  .exercise-table td {
+    padding: 8px 6px;
+    font-size: 14px;
+  }
+
+  .chart .modebar {
+    transform: scale(0.9);
   }
 }

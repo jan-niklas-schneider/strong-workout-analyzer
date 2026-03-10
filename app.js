@@ -61,7 +61,7 @@ function formatDate(date) {
 
 function weekStartMonday(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0 Sun ... 6 Sat
+  const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -98,7 +98,6 @@ function rollingStd(values, windowSize, minPeriods = 3) {
     out.push(Math.sqrt(variance));
   }
 
-  // backfill then apply floor
   let firstFinite = out.find(v => Number.isFinite(v));
   if (!Number.isFinite(firstFinite)) firstFinite = 0.15;
   return out.map(v => Math.max(0.15, Number.isFinite(v) ? v : firstFinite));
@@ -130,6 +129,48 @@ function linearRegression(yValues) {
   const slope = (n * sumXY - sumX * sumY) / denom;
   const intercept = (sumY - slope * sumX) / n;
   return { slope, intercept };
+}
+
+function isMobile() {
+  return window.matchMedia("(max-width: 767px)").matches;
+}
+
+function getBasePlotLayout(title, yLabel) {
+  const mobile = isMobile();
+
+  return {
+    title: {
+      text: title,
+      font: { size: mobile ? 14 : 16 }
+    },
+    autosize: true,
+    dragmode: false,
+    hovermode: "x unified",
+    margin: mobile
+      ? { l: 42, r: 12, t: 48, b: 40 }
+      : { l: 52, r: 20, t: 56, b: 44 },
+    xaxis: {
+      title: mobile ? "" : "Date",
+      automargin: true,
+      tickangle: mobile ? -30 : 0
+    },
+    yaxis: {
+      title: yLabel,
+      automargin: true
+    },
+    legend: {
+      orientation: "h"
+    }
+  };
+}
+
+function getPlotConfig() {
+  return {
+    responsive: true,
+    scrollZoom: false,
+    doubleClick: false,
+    displayModeBar: false
+  };
 }
 
 function renderOverview() {
@@ -166,11 +207,13 @@ function renderOverview() {
     type: "bar",
     hovertemplate: "%{x}<br>Workouts: %{y}<extra></extra>"
   }], {
-    title: "Workouts per Week",
-    margin: { l: 40, r: 20, t: 50, b: 40 },
-    yaxis: { title: "Workouts" },
-    xaxis: { title: "Week" }
-  }, { responsive: true });
+    ...getBasePlotLayout("Workouts per Week", "Workouts"),
+    xaxis: {
+      title: isMobile() ? "" : "Week",
+      automargin: true,
+      tickangle: isMobile() ? -30 : 0
+    }
+  }, getPlotConfig());
 
   Plotly.newPlot("volumePerWeek", [{
     x: weeks,
@@ -178,11 +221,13 @@ function renderOverview() {
     type: "bar",
     hovertemplate: "%{x}<br>Volume: %{y:.0f}<extra></extra>"
   }], {
-    title: "Training Volume per Week",
-    margin: { l: 50, r: 20, t: 50, b: 40 },
-    yaxis: { title: "kg × reps" },
-    xaxis: { title: "Week" }
-  }, { responsive: true });
+    ...getBasePlotLayout("Training Volume per Week", "kg × reps"),
+    xaxis: {
+      title: isMobile() ? "" : "Week",
+      automargin: true,
+      tickangle: isMobile() ? -30 : 0
+    }
+  }, getPlotConfig());
 
   renderWeightChart();
 }
@@ -207,7 +252,6 @@ function renderWeightChart() {
 
   container.classList.remove("hidden");
 
-  // last weight per day
   const byDay = new Map();
   rows.forEach(r => byDay.set(formatDate(r.date), r.value));
 
@@ -293,15 +337,13 @@ function renderWeightChart() {
   ];
 
   Plotly.newPlot(container, traces, {
-    title: "Bodyweight – Trend, Uncertainty & Forecast",
-    margin: { l: 50, r: 20, t: 50, b: 40 },
-    hovermode: "x unified",
+    ...getBasePlotLayout("Bodyweight – Trend, Uncertainty & Forecast", "kg"),
     xaxis: {
-      title: "Date",
+      title: isMobile() ? "" : "Date",
+      automargin: true,
+      tickangle: isMobile() ? -30 : 0,
       range: [dates[0], forecastDates[forecastDates.length - 1]]
     },
-    yaxis: { title: "kg" },
-    legend: { orientation: "h" },
     shapes: [{
       type: "line",
       x0: dates[dates.length - 1],
@@ -323,7 +365,7 @@ function renderWeightChart() {
       yanchor: "bottom",
       bgcolor: "rgba(255,255,255,0.8)"
     }]
-  }, { responsive: true });
+  }, getPlotConfig());
 }
 
 function buildExerciseSummary() {
@@ -391,13 +433,31 @@ function buildExerciseSummary() {
 
 function renderExerciseTable() {
   const container = document.getElementById("exerciseTable");
+  const select = document.getElementById("exerciseSelect");
   const summary = buildExerciseSummary();
 
   if (!summary.length) {
     container.innerHTML = '<p class="muted">No exercises found.</p>';
     document.getElementById("exerciseCharts").innerHTML = "";
+    select.innerHTML = "";
     return;
   }
+
+  selectedExercise = selectedExercise && summary.some(x => x.name === selectedExercise)
+    ? selectedExercise
+    : summary[0].name;
+
+  select.innerHTML = summary.map(ex => `
+    <option value="${escapeHtml(ex.name)}" ${ex.name === selectedExercise ? "selected" : ""}>
+      ${escapeHtml(ex.name)}
+    </option>
+  `).join("");
+
+  select.onchange = (event) => {
+    selectedExercise = event.target.value;
+    updateActiveExerciseRow();
+    renderExerciseCharts(selectedExercise);
+  };
 
   container.innerHTML = `
     <div class="table-wrap">
@@ -411,8 +471,8 @@ function renderExerciseTable() {
           </tr>
         </thead>
         <tbody>
-          ${summary.map((ex, idx) => `
-            <tr data-exercise="${escapeHtml(ex.name)}" class="${idx === 0 ? 'active' : ''}">
+          ${summary.map((ex) => `
+            <tr data-exercise="${escapeHtml(ex.name)}" class="${ex.name === selectedExercise ? "active" : ""}">
               <td>${escapeHtml(ex.name)}</td>
               <td>${ex.count}</td>
               <td>${escapeHtml(ex.lastDate)}</td>
@@ -427,15 +487,28 @@ function renderExerciseTable() {
   const rows = container.querySelectorAll("tbody tr");
   rows.forEach(row => {
     row.addEventListener("click", () => {
-      rows.forEach(r => r.classList.remove("active"));
-      row.classList.add("active");
-      const exercise = row.getAttribute("data-exercise");
-      renderExerciseCharts(exercise);
+      selectedExercise = row.getAttribute("data-exercise");
+      select.value = selectedExercise;
+      updateActiveExerciseRow();
+      renderExerciseCharts(selectedExercise);
+
+      if (isMobile()) {
+        document.getElementById("exerciseCharts").scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }
     });
   });
 
-  selectedExercise = summary[0].name;
   renderExerciseCharts(selectedExercise);
+}
+
+function updateActiveExerciseRow() {
+  const rows = document.querySelectorAll("#exerciseTable tbody tr");
+  rows.forEach(row => {
+    row.classList.toggle("active", row.getAttribute("data-exercise") === selectedExercise);
+  });
 }
 
 function renderExerciseCharts(exercise) {
@@ -478,11 +551,8 @@ function plotMetric(elementId, title, x, y, yLabel) {
     mode: "lines+markers",
     hovertemplate: "%{x}<br>%{y:.2f}<extra></extra>"
   }], {
-    title,
-    margin: { l: 50, r: 20, t: 50, b: 40 },
-    xaxis: { title: "Date" },
-    yaxis: { title: yLabel }
-  }, { responsive: true });
+    ...getBasePlotLayout(title, yLabel)
+  }, getPlotConfig());
 }
 
 function escapeHtml(value) {
@@ -493,3 +563,22 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+window.addEventListener("resize", () => {
+  const plotIds = [
+    "workoutsPerWeek",
+    "volumePerWeek",
+    "weightChart",
+    "chart-max",
+    "chart-best-set",
+    "chart-e1rm",
+    "chart-volume"
+  ];
+
+  plotIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      Plotly.Plots.resize(el);
+    }
+  });
+});
