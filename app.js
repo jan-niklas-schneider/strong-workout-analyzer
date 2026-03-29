@@ -2,6 +2,20 @@ let workoutsData = [];
 let weightData = [];
 let selectedExercise = null;
 
+const COLORS = {
+  primary: "rgb(31,119,180)",
+  primarySoft: "rgba(31, 119, 180, 0.2)",
+
+  secondary: "rgb(255,127,14)",
+  
+  forecast: "rgb(255,127,14)",
+  forecastSoft: "rgba(255,127,14, 0.2)",
+  
+  workoutLow: "rgba(31, 119, 180, 0.2)",
+  workoutMid: "rgba(31, 119, 180, 0.50)",
+  workoutHigh: "rgb(31, 119, 180)"
+};
+
 document.getElementById("analyzeBtn").addEventListener("click", analyzeFiles);
 
 async function analyzeFiles() {
@@ -200,11 +214,20 @@ function renderOverview() {
   const weeks = Array.from(weeklyMap.keys()).sort();
   const workoutCounts = weeks.map(w => weeklyMap.get(w).sessions.size);
   const volumes = weeks.map(w => weeklyMap.get(w).volume);
+  const targetWorkouts = 3;
+
+  const colors = workoutCounts.map(v => {
+    if (v <= 1) return COLORS.workoutLow;
+    if (v === 2) return COLORS.workoutMid;
+    return COLORS.workoutHigh;
+  });
+
 
   Plotly.newPlot("workoutsPerWeek", [{
     x: weeks,
     y: workoutCounts,
     type: "bar",
+    marker: { color: colors },
     hovertemplate: "%{x}<br>Workouts: %{y}<extra></extra>"
   }], {
     ...getBasePlotLayout("Workouts per Week", "Workouts"),
@@ -212,7 +235,31 @@ function renderOverview() {
       title: isMobile() ? "" : "Week",
       automargin: true,
       tickangle: isMobile() ? -30 : 0
-    }
+    },
+    shapes: [
+      {
+        type: "line",
+        x0: weeks[0],
+        x1: weeks[weeks.length - 1],
+        y0: targetWorkouts,
+        y1: targetWorkouts,
+        line: {
+          color: COLORS.primary,
+          width: 2,
+          dash: "dash"
+        }
+      }
+    ],
+    annotations: [
+      {
+        x: weeks[weeks.length - 1],
+        y: targetWorkouts,
+        text: "Ziel: 3x/Woche",
+        showarrow: false,
+        xanchor: "right",
+        yanchor: "bottom"
+      }
+    ]
   }, getPlotConfig());
 
   Plotly.newPlot("volumePerWeek", [{
@@ -295,7 +342,7 @@ function renderWeightChart() {
       x: [...dates, ...[...dates].reverse()],
       y: [...upper, ...[...lower].reverse()],
       fill: "toself",
-      fillcolor: "rgba(31,119,180,0.14)",
+      fillcolor: COLORS.primarySoft,
       line: { color: "rgba(0,0,0,0)" },
       hoverinfo: "skip",
       name: "Historical uncertainty"
@@ -305,14 +352,18 @@ function renderWeightChart() {
       y: values,
       mode: "markers+lines",
       name: "Measured",
+      line: { color: COLORS.secondary },
+      marker: { color: COLORS.secondary },
       hovertemplate: "%{x}<br>Measured: %{y:.2f} kg<extra></extra>"
     },
     {
       x: dates,
       y: trend,
       mode: "lines",
-      line: { width: 3 },
+      line: { width: 2 },
       name: "Trend (7 days)",
+      line: { color: COLORS.primary },
+      marker: { color: COLORS.primary },
       customdata: stds,
       hovertemplate: "%{x}<br>Trend: %{y:.2f} kg ± %{customdata:.2f}<extra></extra>"
     },
@@ -320,7 +371,7 @@ function renderWeightChart() {
       x: [...forecastDates, ...[...forecastDates].reverse()],
       y: [...forecastUpper, ...[...forecastLower].reverse()],
       fill: "toself",
-      fillcolor: "rgba(214,39,40,0.16)",
+      fillcolor: COLORS.forecastSoft,
       line: { color: "rgba(0,0,0,0)" },
       hoverinfo: "skip",
       name: "Forecast uncertainty"
@@ -329,7 +380,7 @@ function renderWeightChart() {
       x: forecastDates,
       y: forecastTrend,
       mode: "lines",
-      line: { width: 3, dash: "dash" },
+      line: { width: 2, dash: "dash", color: COLORS.forecast },
       name: "Forecast (14 days)",
       customdata: forecastStd,
       hovertemplate: "%{x}<br>Forecast: %{y:.2f} kg ± %{customdata:.2f}<extra></extra>"
@@ -337,7 +388,7 @@ function renderWeightChart() {
   ];
 
   Plotly.newPlot(container, traces, {
-    ...getBasePlotLayout("Bodyweight – Trend, Uncertainty & Forecast", "kg"),
+    ...getBasePlotLayout("Bodyweight", "kg"),
     xaxis: {
       title: isMobile() ? "" : "Date",
       automargin: true,
