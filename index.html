@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,6 +14,7 @@
   <link rel="manifest" href="assets/favicon/site.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <main class="page">
     <header class="header">
@@ -37,11 +39,15 @@
 
     <section>
       <h2>Overview</h2>
-      <div class="grid two">
-        <div id="workoutsPerWeek" class="card chart"></div>
-        <div id="volumePerWeek" class="card chart"></div>
+
+      <div class="overview-grid">
+        <div class="grid two">
+          <div id="workoutsPerWeek" class="card chart"></div>
+          <div id="volumePerWeek" class="card chart"></div>
+        </div>
+
+        <div id="weightChart" class="card chart hidden"></div>
       </div>
-      <div id="weightChart" class="card chart hidden"></div>
     </section>
 
     <section>
@@ -71,4 +77,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

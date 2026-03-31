@@ -7,16 +7,33 @@ const COLORS = {
   primarySoft: "rgba(31, 119, 180, 0.2)",
 
   secondary: "rgb(255,127,14)",
-  
+
   forecast: "rgb(255,127,14)",
   forecastSoft: "rgba(255,127,14, 0.2)",
-  
+
   workoutLow: "rgba(31, 119, 180, 0.2)",
   workoutMid: "rgba(31, 119, 180, 0.50)",
   workoutHigh: "rgb(31, 119, 180)"
 };
 
 document.getElementById("analyzeBtn").addEventListener("click", analyzeFiles);
+
+function countWorkouts(rows) {
+  const sessions = new Set();
+
+  rows.forEach(row => {
+    const date = parseDate(getValue(row, ["Datum", "Date"]));
+    if (!date) return;
+
+    const dayKey = formatDate(date);
+    const workoutName = String(getValue(row, ["Workout-Name", "Workout Name"], dayKey));
+    const sessionKey = `${dayKey}||${workoutName}`;
+
+    sessions.add(sessionKey);
+  });
+
+  return sessions.size;
+}
 
 async function analyzeFiles() {
   const workoutsFile = document.getElementById("workoutsFile").files[0];
@@ -38,7 +55,11 @@ async function analyzeFiles() {
   renderOverview();
   renderExerciseTable();
 
-  status.textContent = `Loaded ${workoutsData.length} workout rows${weightData.length ? ` and ${weightData.length} bodyweight rows` : ""}.`;
+  const workoutCount = countWorkouts(workoutsData);
+
+  status.textContent = `Loaded ${workoutsData.length} workout rows (${workoutCount} workouts)${
+    weightData.length ? ` and ${weightData.length} bodyweight rows` : ""
+  }.`;
 }
 
 function parseCSV(file) {
@@ -161,12 +182,12 @@ function getBasePlotLayout(title, yLabel) {
     dragmode: false,
     hovermode: "x unified",
     margin: mobile
-      ? { l: 42, r: 12, t: 48, b: 40 }
-      : { l: 52, r: 20, t: 56, b: 44 },
+      ? { l: 50, r: 20, t: 50, b: 80 }
+      : { l: 60, r: 30, t: 60, b: 100 },
     xaxis: {
       title: mobile ? "" : "Date",
       automargin: true,
-      tickangle: mobile ? -30 : 0
+      tickangle: -45
     },
     yaxis: {
       title: yLabel,
@@ -234,7 +255,7 @@ function renderOverview() {
     xaxis: {
       title: isMobile() ? "" : "Week",
       automargin: true,
-      tickangle: isMobile() ? -30 : 0
+      tickangle: -45
     },
     shapes: [
       {
@@ -272,7 +293,7 @@ function renderOverview() {
     xaxis: {
       title: isMobile() ? "" : "Week",
       automargin: true,
-      tickangle: isMobile() ? -30 : 0
+      tickangle: -45
     }
   }, getPlotConfig());
 
@@ -596,13 +617,20 @@ function safeMetric(value) {
 }
 
 function plotMetric(elementId, title, x, y, yLabel) {
+  const isKgChart = yLabel === "kg";
+
   Plotly.newPlot(elementId, [{
     x,
     y,
     mode: "lines+markers",
     hovertemplate: "%{x}<br>%{y:.2f}<extra></extra>"
   }], {
-    ...getBasePlotLayout(title, yLabel)
+    ...getBasePlotLayout(title, yLabel),
+    yaxis: {
+      ...getBasePlotLayout(title, yLabel).yaxis,
+      tickmode: isKgChart ? "linear" : undefined,
+      dtick: isKgChart ? 5 : undefined
+    }
   }, getPlotConfig());
 }
 

@@ -73,6 +73,7 @@ button:hover {
   min-height: 20px;
 }
 
+/* === GRID SYSTEM (KONSISTENT) === */
 .grid {
   display: grid;
   gap: 16px;
@@ -82,12 +83,21 @@ button:hover {
   grid-template-columns: 1fr;
 }
 
+/* NEU: Overview Wrapper für konsistente Abstände */
+.overview-grid {
+  display: grid;
+  gap: 16px;
+}
+
+/* === CHARTS === */
 .chart {
   min-height: 320px;
   width: 100%;
+  padding: 10px;
   overflow: hidden;
 }
 
+/* === TABLE === */
 .hidden {
   display: none;
 }
@@ -125,6 +135,7 @@ button:hover {
   color: #6b7280;
 }
 
+/* === EXERCISE LAYOUT === */
 .exercise-layout {
   display: grid;
   gap: 16px;
@@ -167,6 +178,7 @@ button:hover {
   font-size: 15px;
 }
 
+/* Plotly fixes */
 .chart .js-plotly-plot,
 .chart .plot-container,
 .chart .svg-container {
@@ -180,6 +192,7 @@ button:hover {
   transform-origin: top right;
 }
 
+/* === RESPONSIVE === */
 @media (min-width: 768px) {
   .grid.two {
     grid-template-columns: 1fr 1fr;
