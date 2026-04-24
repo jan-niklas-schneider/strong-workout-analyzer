@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
@@ -25,13 +25,50 @@
     <section class="card controls">
       <div class="upload">
         <label for="workoutsFile">Workouts CSV</label>
-        <input type="file" id="workoutsFile" accept=".csv">
+        <div class="file-picker">
+          <input type="file" id="workoutsFile" accept=".csv">
+          <button type="button" id="workoutsFileBtn">Choose file</button>
+          <span id="workoutsFileName" class="file-name">No file selected</span>
+        </div>
       </div>
 
       <div class="upload">
         <label for="weightFile">Bodyweight CSV (optional)</label>
-        <input type="file" id="weightFile" accept=".csv">
+        <div class="file-picker">
+          <input type="file" id="weightFile" accept=".csv">
+          <button type="button" id="weightFileBtn">Choose file</button>
+          <span id="weightFileName" class="file-name">No file selected</span>
+        </div>
       </div>
+
+      <details id="overviewFilterPanel" class="filter-panel hidden">
+        <summary class="filter-toggle">
+          <span class="filter-toggle-label">Date filter</span>
+          <span id="overviewRangeLabel" class="muted filter-summary"></span>
+        </summary>
+        <div class="filter-dropdown">
+          <label class="inline-select" for="overviewPresetSelect">
+            <span>Preset</span>
+            <select id="overviewPresetSelect">
+              <option value="all">All time</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 6 months</option>
+              <option value="365">Last 12 months</option>
+            </select>
+          </label>
+          <div class="filter-sliders">
+            <label class="range-field" for="overviewStartRange">
+              <span id="overviewStartLabel">Start</span>
+              <input type="range" id="overviewStartRange">
+            </label>
+            <label class="range-field" for="overviewEndRange">
+              <span id="overviewEndLabel">End</span>
+              <input type="range" id="overviewEndRange">
+            </label>
+          </div>
+        </div>
+      </details>
 
       <button id="analyzeBtn">Analyze</button>
       <div id="status" class="status"></div>
@@ -47,6 +84,7 @@
         </div>
 
         <div id="weightChart" class="card chart hidden"></div>
+        <div id="muscleGroupVolume" class="card chart hidden"></div>
       </div>
     </section>
 
@@ -67,7 +105,7 @@
 
         <div class="card exercise-list-card">
           <div class="exercise-list-header">
-            <h3>Exercices</h3>
+            <h3>Exercises</h3>
           </div>
           <div id="exerciseTable"></div>
         </div>

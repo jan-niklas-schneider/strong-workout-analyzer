@@ -20,12 +20,15 @@ Scan the QR code to open the app on your phone.
 - Import **Strong workout CSV** exports
 - Optional import of **bodyweight CSV** data
 - Interactive charts powered by **Plotly**
+- Share charts as PNG images (inkl. Web Share auf unterstützten Geräten)
 - Weekly overview of workout frequency and training volume
+- Muscle group analysis with aggregated volume per Gruppe
 - Exercise-specific insights for:
   - max weight
   - best set
   - estimated 1RM
   - total daily volume
+  - prozentuale Fortschritte über die Zeit
 - Fully client-side analysis with no backend required
 - Responsive layout for desktop and mobile
 

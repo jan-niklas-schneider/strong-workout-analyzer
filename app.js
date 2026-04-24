@@ -1,6 +1,8 @@
 let workoutsData = [];
 let weightData = [];
 let selectedExercise = null;
+let tableSort = { key: "count", direction: "desc" };
+let overviewRange = { dates: [], startIndex: 0, endIndex: 0, preset: "all" };
 
 const COLORS = {
   primary: "rgb(31,119,180)",
@@ -16,7 +18,147 @@ const COLORS = {
   workoutHigh: "rgb(31, 119, 180)"
 };
 
+const MUSCLE_GROUP_PATTERNS = [
+  { name: "Chest", patterns: ["bench", "drück", "chest", "fly", "press", "bank"] },
+  { name: "Back", patterns: ["row", "zug", "pull", "lat", "deadlift", "kreuz", "back"] },
+  { name: "Legs", patterns: ["squat", "beinpresse", "beinstreck", "leg", "lunge", "deadlift", "press"] },
+  { name: "Shoulders", patterns: ["shoulder", "press", "military", "deltoid", "seitheben", "frontheben", "arnold"] },
+  { name: "Arms", patterns: ["curl", "bizeps", "trizeps", "dip", "hammer", "skullcrusher", "triceps", "biceps"] },
+  { name: "Core", patterns: ["plank", "situp", "abs", "crunch", "core", "twist", "leg raise"] }
+];
+
+function detectMuscleGroup(exercise) {
+  const name = String(exercise).toLowerCase();
+  for (const group of MUSCLE_GROUP_PATTERNS) {
+    if (group.patterns.some(pattern => name.includes(pattern))) {
+      return group.name;
+    }
+  }
+  return "Other";
+}
+
+function createChartMarkup(plotId, title) {
+  return `
+    <div class="chart-header">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="chart-actions">
+        <button type="button" data-action="share" data-plotid="${plotId}">Share</button>
+      </div>
+    </div>
+    <div id="${plotId}" class="chart-plot"></div>
+  `;
+}
+
+function attachChartActions(container) {
+  const buttons = container.querySelectorAll("button[data-action]");
+  buttons.forEach(button => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.action;
+      const plotId = button.dataset.plotid;
+      const title = button.closest(".chart-header")?.querySelector("h3")?.textContent || plotId;
+      if (action === "share") {
+        await handleChartShare(plotId, title);
+      }
+    });
+  });
+}
+
+async function handleChartShare(plotId, title) {
+  try {
+    const blob = await getPlotImageBlob(plotId, "png");
+    const file = new File([blob], `${title.replace(/\s+/g, "_").replace(/[^_0-9a-zA-Z-]/g, "")}.png`, {
+      type: "image/png"
+    });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title,
+        text: `Share this chart: ${title}`
+      });
+      return;
+    }
+
+    downloadBlob(blob, `${title.replace(/\s+/g, "_").replace(/[^_0-9a-zA-Z-]/g, "")}.png`);
+  } catch (error) {
+    console.error("Share failed", error);
+    alert("Sharing is not available. The image will be downloaded instead.");
+  }
+}
+
+async function getPlotImageBlob(plotId, format = "png") {
+  const dataUrl = await Plotly.toImage(plotId, {
+    format,
+    width: 1200,
+    height: 680,
+    scale: 2
+  });
+  return dataURLToBlob(dataUrl);
+}
+
+function dataURLToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(",");
+  const contentType = header.split(":")[1].split(";")[0];
+  const raw = atob(base64);
+  const buffer = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) {
+    buffer[i] = raw.charCodeAt(i);
+  }
+  return new Blob([buffer], { type: contentType });
+}
+
+function getWorkoutInterval() {
+  const dates = workoutsData
+    .map(row => parseDate(getValue(row, ["Datum", "Date"])))
+    .filter(date => date)
+    .sort((a, b) => a - b);
+
+  if (!dates.length) {
+    return "no date range";
+  }
+
+  const start = formatDate(dates[0]);
+  const end = formatDate(dates[dates.length - 1]);
+  return start === end ? start : `${start} – ${end}`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function initFilePickers() {
+  const workoutsFileInput = document.getElementById("workoutsFile");
+  const weightFileInput = document.getElementById("weightFile");
+  const workoutsFileBtn = document.getElementById("workoutsFileBtn");
+  const weightFileBtn = document.getElementById("weightFileBtn");
+  const workoutsFileName = document.getElementById("workoutsFileName");
+  const weightFileName = document.getElementById("weightFileName");
+
+  workoutsFileBtn.addEventListener("click", () => workoutsFileInput.click());
+  weightFileBtn.addEventListener("click", () => weightFileInput.click());
+
+  workoutsFileInput.addEventListener("change", () => {
+    workoutsFileName.textContent = workoutsFileInput.files.length
+      ? workoutsFileInput.files[0].name
+      : "No file selected";
+  });
+
+  weightFileInput.addEventListener("change", () => {
+    weightFileName.textContent = weightFileInput.files.length
+      ? weightFileInput.files[0].name
+      : "No file selected";
+  });
+}
+
 document.getElementById("analyzeBtn").addEventListener("click", analyzeFiles);
+initFilePickers();
 
 function countWorkouts(rows) {
   const sessions = new Set();
@@ -47,8 +189,9 @@ async function analyzeFiles() {
 
   status.textContent = "Parsing files...";
 
-  workoutsData = await parseCSV(workoutsFile);
+  workoutsData = normalizeWorkoutsData(await parseCSV(workoutsFile));
   weightData = weightFile ? await parseCSV(weightFile) : [];
+  initializeOverviewRange();
 
   status.textContent = "Building charts...";
 
@@ -74,6 +217,25 @@ function parseCSV(file) {
   });
 }
 
+function normalizeWorkoutsData(rows) {
+  return rows.map(row => {
+    const normalizedRow = { ...row };
+    const exercise = String(getValue(normalizedRow, ["Name der Übung", "Name der Ãœbung", "Exercise Name"], "")).trim();
+    const weightKey = normalizedRow["Gewicht"] !== undefined ? "Gewicht" : normalizedRow["Weight"] !== undefined ? "Weight" : null;
+
+    if (!weightKey || !isAssistedExercise(exercise)) {
+      return normalizedRow;
+    }
+
+    const weight = Number(normalizedRow[weightKey]);
+    if (Number.isFinite(weight)) {
+      normalizedRow[weightKey] = -Math.abs(weight);
+    }
+
+    return normalizedRow;
+  });
+}
+
 function getValue(row, keys, fallback = null) {
   for (const key of keys) {
     if (row[key] !== undefined && row[key] !== null && row[key] !== "") {
@@ -94,6 +256,175 @@ function formatDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function getUniqueWorkoutDates() {
+  return Array.from(new Set(
+    workoutsData
+      .map(row => formatDate(parseDate(getValue(row, ["Datum", "Date"]))))
+      .filter(Boolean)
+  )).sort();
+}
+
+function initializeOverviewRange() {
+  overviewRange.dates = getUniqueWorkoutDates();
+  overviewRange.startIndex = 0;
+  overviewRange.endIndex = Math.max(0, overviewRange.dates.length - 1);
+  overviewRange.preset = "all";
+  syncOverviewRangeControls();
+}
+
+function syncOverviewRangeControls() {
+  const panel = document.getElementById("overviewFilterPanel");
+  const presetSelect = document.getElementById("overviewPresetSelect");
+  const startInput = document.getElementById("overviewStartRange");
+  const endInput = document.getElementById("overviewEndRange");
+  const startLabel = document.getElementById("overviewStartLabel");
+  const endLabel = document.getElementById("overviewEndLabel");
+
+  if (!overviewRange.dates.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  const maxIndex = overviewRange.dates.length - 1;
+  panel.classList.remove("hidden");
+  presetSelect.value = overviewRange.preset;
+
+  [startInput, endInput].forEach(input => {
+    input.min = "0";
+    input.max = String(maxIndex);
+    input.step = "1";
+  });
+
+  startInput.value = String(overviewRange.startIndex);
+  endInput.value = String(overviewRange.endIndex);
+  startLabel.textContent = `Start: ${overviewRange.dates[overviewRange.startIndex]}`;
+  endLabel.textContent = `End: ${overviewRange.dates[overviewRange.endIndex]}`;
+
+  presetSelect.onchange = event => {
+    setOverviewRangePreset(event.target.value);
+  };
+
+  startInput.oninput = event => {
+    overviewRange.startIndex = Math.min(Number(event.target.value), overviewRange.endIndex);
+    startInput.value = String(overviewRange.startIndex);
+    syncOverviewRangePreset();
+    syncOverviewRangeControls();
+    rerenderForOverviewRange();
+  };
+
+  endInput.oninput = event => {
+    overviewRange.endIndex = Math.max(Number(event.target.value), overviewRange.startIndex);
+    endInput.value = String(overviewRange.endIndex);
+    syncOverviewRangePreset();
+    syncOverviewRangeControls();
+    rerenderForOverviewRange();
+  };
+
+  updateOverviewRangeLabel();
+}
+
+function rerenderForOverviewRange() {
+  renderOverview();
+  renderExerciseTable();
+}
+
+function setOverviewRangePreset(preset) {
+  if (!overviewRange.dates.length) return;
+
+  const nextRange = getPresetRangeIndices(preset);
+  overviewRange.preset = preset;
+  overviewRange.startIndex = nextRange.startIndex;
+  overviewRange.endIndex = nextRange.endIndex;
+
+  syncOverviewRangeControls();
+  rerenderForOverviewRange();
+}
+
+function syncOverviewRangePreset() {
+  const maxIndex = overviewRange.dates.length - 1;
+  if (overviewRange.startIndex === 0 && overviewRange.endIndex === maxIndex) {
+    overviewRange.preset = "all";
+    return;
+  }
+
+  const presetOptions = ["30", "90", "180", "365"];
+  const matchedPreset = presetOptions.find(option => {
+    const expected = getPresetRangeIndices(option);
+    return expected.startIndex === overviewRange.startIndex && expected.endIndex === overviewRange.endIndex;
+  });
+
+  overviewRange.preset = matchedPreset || "all";
+}
+
+function getPresetRangeIndices(preset) {
+  const maxIndex = overviewRange.dates.length - 1;
+  if (preset === "all") {
+    return { startIndex: 0, endIndex: maxIndex };
+  }
+
+  const latestDate = parseDate(overviewRange.dates[maxIndex]);
+  const cutoff = new Date(latestDate);
+  cutoff.setDate(cutoff.getDate() - Number(preset));
+
+  const startIndex = overviewRange.dates.findIndex(date => {
+    const parsed = parseDate(date);
+    return parsed && parsed >= cutoff;
+  });
+
+  return {
+    startIndex: startIndex === -1 ? 0 : startIndex,
+    endIndex: maxIndex
+  };
+}
+
+function updateOverviewRangeLabel() {
+  const label = document.getElementById("overviewRangeLabel");
+  const bounds = getOverviewDateBounds();
+  if (!bounds) {
+    label.textContent = "";
+    return;
+  }
+
+  const presetText = {
+    all: "All time",
+    30: "Last 30 days",
+    90: "Last 90 days",
+    180: "Last 6 months",
+    365: "Last 12 months"
+  }[overviewRange.preset] || "Manual range";
+
+  const datesText = bounds.start === bounds.end
+    ? bounds.start
+    : `${bounds.start} - ${bounds.end}`;
+
+  label.textContent = `${presetText}: ${datesText}`;
+}
+
+function getOverviewDateBounds() {
+  if (!overviewRange.dates.length) return null;
+  return {
+    start: overviewRange.dates[overviewRange.startIndex],
+    end: overviewRange.dates[overviewRange.endIndex]
+  };
+}
+
+function filterRowsByDateBounds(rows, bounds, dateKeys = ["Datum", "Date"]) {
+  if (!bounds) return rows;
+
+  return rows.filter(row => {
+    const date = formatDate(parseDate(getValue(row, dateKeys)));
+    return date && date >= bounds.start && date <= bounds.end;
+  });
+}
+
+function getProgressRangeLabel() {
+  const bounds = getOverviewDateBounds();
+  if (!bounds) return "the selected date range";
+  return bounds.start === bounds.end
+    ? bounds.start
+    : `${bounds.start} to ${bounds.end}`;
+}
+
 function weekStartMonday(date) {
   const d = new Date(date);
   const day = d.getDay();
@@ -112,10 +443,10 @@ function isAssistedExercise(name) {
   return /\(assisted\)/i.test(String(name));
 }
 
-function pickPerformanceValue(currentValue, nextValue, preferLower) {
+function pickPerformanceValue(currentValue, nextValue) {
   if (!Number.isFinite(nextValue)) return currentValue;
   if (!Number.isFinite(currentValue)) return nextValue;
-  return preferLower ? Math.min(currentValue, nextValue) : Math.max(currentValue, nextValue);
+  return Math.max(currentValue, nextValue);
 }
 
 function movingAverage(values, windowSize) {
@@ -219,9 +550,11 @@ function getPlotConfig() {
 }
 
 function renderOverview() {
+  const bounds = getOverviewDateBounds();
+  const overviewRows = filterRowsByDateBounds(workoutsData, bounds);
   const weeklyMap = new Map();
 
-  workoutsData.forEach(row => {
+  overviewRows.forEach(row => {
     const date = parseDate(getValue(row, ["Datum", "Date"]));
     if (!date) return;
 
@@ -253,8 +586,9 @@ function renderOverview() {
     return COLORS.workoutHigh;
   });
 
-
-  Plotly.newPlot("workoutsPerWeek", [{
+  const workoutsCard = document.getElementById("workoutsPerWeek");
+  workoutsCard.innerHTML = createChartMarkup("workoutsPerWeekPlot", "Workouts per Week");
+  Plotly.newPlot("workoutsPerWeekPlot", [{
     x: weeks,
     y: workoutCounts,
     type: "bar",
@@ -267,7 +601,7 @@ function renderOverview() {
       automargin: true,
       tickangle: -45
     },
-    shapes: [
+    shapes: weeks.length ? [
       {
         type: "line",
         x0: weeks[0],
@@ -280,20 +614,23 @@ function renderOverview() {
           dash: "dash"
         }
       }
-    ],
-    annotations: [
+    ] : [],
+    annotations: weeks.length ? [
       {
         x: weeks[weeks.length - 1],
         y: targetWorkouts,
-        text: "Ziel: 3x/Woche",
+        text: "Goal: 3x/week",
         showarrow: false,
         xanchor: "right",
         yanchor: "bottom"
       }
-    ]
+    ] : []
   }, getPlotConfig());
+  attachChartActions(workoutsCard);
 
-  Plotly.newPlot("volumePerWeek", [{
+  const volumeCard = document.getElementById("volumePerWeek");
+  volumeCard.innerHTML = createChartMarkup("volumePerWeekPlot", "Training Volume per Week");
+  Plotly.newPlot("volumePerWeekPlot", [{
     x: weeks,
     y: volumes,
     type: "bar",
@@ -306,14 +643,75 @@ function renderOverview() {
       tickangle: -45
     }
   }, getPlotConfig());
+  attachChartActions(volumeCard);
 
-  renderWeightChart();
+  renderWeightChart(bounds);
+  renderMuscleGroupChart(overviewRows);
 }
 
-function renderWeightChart() {
+function buildMuscleGroupSummary(rows = workoutsData) {
+  const groups = new Map();
+
+  rows.forEach(row => {
+    const exercise = String(getValue(row, ["Name der Übung", "Exercise Name"], "")).trim();
+    if (!exercise) return;
+
+    const weight = Number(getValue(row, ["Gewicht", "Weight"], 0)) || 0;
+    const reps = Number(getValue(row, ["Wiederh.", "Reps"], 0)) || 0;
+    const volume = weight * reps;
+    const groupName = detectMuscleGroup(exercise);
+
+    if (!groups.has(groupName)) {
+      groups.set(groupName, { volume: 0, count: 0 });
+    }
+
+    const group = groups.get(groupName);
+    group.volume += volume;
+    group.count += 1;
+  });
+
+  return Array.from(groups.entries())
+    .map(([name, stats]) => ({ name, ...stats }))
+    .sort((a, b) => b.volume - a.volume);
+}
+
+function renderMuscleGroupChart(rows = workoutsData) {
+  const container = document.getElementById("muscleGroupVolume");
+  const summary = buildMuscleGroupSummary(rows);
+
+  if (!summary.length) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+    return;
+  }
+
+  container.classList.remove("hidden");
+  container.innerHTML = createChartMarkup("muscleGroupVolumePlot", "Muscle Groups: Total Volume");
+
+  const x = summary.map(item => item.name);
+  const y = summary.map(item => item.volume);
+
+  Plotly.newPlot("muscleGroupVolumePlot", [{
+    x,
+    y,
+    type: "bar",
+    marker: { color: COLORS.primary }
+  }], {
+    ...getBasePlotLayout("Muscle Groups: Total Volume", "kg × reps"),
+    xaxis: {
+      title: isMobile() ? "" : "Muscle Group",
+      automargin: true,
+      tickangle: -45
+    }
+  }, getPlotConfig());
+
+  attachChartActions(container);
+}
+
+function renderWeightChart(bounds) {
   const container = document.getElementById("weightChart");
 
-  const rows = weightData
+  const rows = filterRowsByDateBounds(weightData, bounds)
     .map(row => {
       const date = parseDate(getValue(row, ["Datum", "Date"]));
       const value = Number(getValue(row, ["Value", "value"], NaN));
@@ -329,6 +727,7 @@ function renderWeightChart() {
   }
 
   container.classList.remove("hidden");
+  container.innerHTML = createChartMarkup("weightChartPlot", "Bodyweight");
 
   const byDay = new Map();
   rows.forEach(r => byDay.set(formatDate(r.date), r.value));
@@ -418,7 +817,7 @@ function renderWeightChart() {
     }
   ];
 
-  Plotly.newPlot(container, traces, {
+  Plotly.newPlot("weightChartPlot", traces, {
     ...getBasePlotLayout("Bodyweight", "kg"),
     xaxis: {
       title: isMobile() ? "" : "Date",
@@ -448,9 +847,43 @@ function renderWeightChart() {
       bgcolor: "rgba(255,255,255,0.8)"
     }]
   }, getPlotConfig());
+
+  attachChartActions(container);
+}
+
+function compareSummaryValues(a, b, key) {
+  const valueA = a[key];
+  const valueB = b[key];
+
+  if (valueA === valueB) return 0;
+
+  if (valueA === null || valueA === undefined) return 1;
+  if (valueB === null || valueB === undefined) return -1;
+
+  if (key === "name") {
+    return String(valueA).localeCompare(String(valueB));
+  }
+
+  if (key === "lastDate") {
+    return String(valueA).localeCompare(String(valueB));
+  }
+
+  return Number(valueA) < Number(valueB) ? -1 : 1;
+}
+
+function sortSummary(summary) {
+  summary.sort((a, b) => {
+    const direction = tableSort.direction === "asc" ? 1 : -1;
+    const comparison = compareSummaryValues(a, b, tableSort.key);
+    if (comparison !== 0) {
+      return comparison * direction;
+    }
+    return String(a.name).localeCompare(String(b.name));
+  });
 }
 
 function buildExerciseSummary() {
+  const progressBounds = getOverviewDateBounds();
   const perExercise = new Map();
 
   workoutsData.forEach(row => {
@@ -462,13 +895,11 @@ function buildExerciseSummary() {
     const reps = Number(getValue(row, ["Wiederh.", "Reps"], 0)) || 0;
     const tonnage = weight * reps;
     const e1rm = epley(weight, reps);
-    const preferLowerPerformanceValues = isAssistedExercise(exercise);
 
     if (!perExercise.has(exercise)) {
       perExercise.set(exercise, {
         count: 0,
         lastDate: null,
-        lastMax: null,
         dayMap: new Map()
       });
     }
@@ -492,26 +923,68 @@ function buildExerciseSummary() {
     }
 
     const dayRec = item.dayMap.get(dayKey);
-    dayRec.maxWeight = pickPerformanceValue(dayRec.maxWeight, weight, preferLowerPerformanceValues);
-    dayRec.bestSet = pickPerformanceValue(dayRec.bestSet, tonnage, preferLowerPerformanceValues);
-    dayRec.bestE1rm = pickPerformanceValue(dayRec.bestE1rm, e1rm, preferLowerPerformanceValues);
+    dayRec.maxWeight = pickPerformanceValue(dayRec.maxWeight, weight);
+    dayRec.bestSet = pickPerformanceValue(dayRec.bestSet, tonnage);
+    dayRec.bestE1rm = pickPerformanceValue(dayRec.bestE1rm, e1rm);
     dayRec.totalVolume += tonnage;
   });
 
   const summary = Array.from(perExercise.entries()).map(([name, item]) => {
     const rows = Array.from(item.dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
     const latest = rows.length ? rows[rows.length - 1] : null;
+
+    const progression = computeExerciseProgress(rows, progressBounds);
+    const progressText = progression !== null
+      ? `${progression > 0 ? "+" : ""}${progression.toFixed(1)}% over ${getProgressRangeLabel()}`
+      : `No progress data for ${getProgressRangeLabel()}`;
+
     return {
       name,
       count: item.count,
       lastDate: item.lastDate ? formatDate(item.lastDate) : "",
       lastMax: latest && Number.isFinite(latest.maxWeight) ? latest.maxWeight : null,
+      progress: progression,
+      progressText,
       rows
     };
   });
 
-  summary.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  sortSummary(summary);
   return summary;
+}
+
+function updateSort(key) {
+  if (tableSort.key === key) {
+    tableSort.direction = tableSort.direction === "asc" ? "desc" : "asc";
+  } else {
+    tableSort.key = key;
+    tableSort.direction = key === "name" ? "asc" : "desc";
+  }
+}
+
+function getSortIndicator(key) {
+  if (tableSort.key !== key) return "";
+  return tableSort.direction === "asc" ? " ▲" : " ▼";
+}
+
+function computeExerciseProgress(rows, bounds = null) {
+  if (!rows.length) return null;
+
+  const relevantRows = bounds
+    ? rows.filter(row => row.date >= bounds.start && row.date <= bounds.end)
+    : rows;
+
+  const metricValues = relevantRows
+    .map(r => Number.isFinite(r.bestE1rm) ? r.bestE1rm : Number.isFinite(r.maxWeight) ? r.maxWeight : null)
+    .filter(Number.isFinite);
+
+  if (metricValues.length < 2) return null;
+
+  const firstValue = metricValues[0];
+  const lastValue = metricValues[metricValues.length - 1];
+  if (!Number.isFinite(firstValue) || firstValue === 0) return null;
+
+  return ((lastValue / firstValue) - 1) * 100;
 }
 
 function renderExerciseTable() {
@@ -547,10 +1020,11 @@ function renderExerciseTable() {
       <table class="exercise-table">
         <thead>
           <tr>
-            <th>Exercise</th>
-            <th>Sets</th>
-            <th>Last entry</th>
-            <th>Latest max</th>
+            <th data-sort-key="name">Exercise${getSortIndicator("name")}</th>
+            <th data-sort-key="count">Sets${getSortIndicator("count")}</th>
+            <th data-sort-key="lastDate">Last entry${getSortIndicator("lastDate")}</th>
+            <th data-sort-key="lastMax">Latest max${getSortIndicator("lastMax")}</th>
+            <th data-sort-key="progress">Progress${getSortIndicator("progress")}</th>
           </tr>
         </thead>
         <tbody>
@@ -560,6 +1034,7 @@ function renderExerciseTable() {
               <td>${ex.count}</td>
               <td>${escapeHtml(ex.lastDate)}</td>
               <td>${ex.lastMax !== null ? `${ex.lastMax.toFixed(1)} kg` : "—"}</td>
+              <td>${ex.progress !== null ? `${ex.progress > 0 ? "+" : ""}${ex.progress.toFixed(1)}%` : "—"}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -567,8 +1042,15 @@ function renderExerciseTable() {
     </div>
   `;
 
+  container.querySelectorAll("th[data-sort-key]").forEach(th => {
+    th.addEventListener("click", () => {
+      updateSort(th.dataset.sortKey);
+      renderExerciseTable();
+    });
+  });
+
   const rows = container.querySelectorAll("tbody tr");
-  rows.forEach(row => {
+  rows.forEach((row) => {
     row.addEventListener("click", () => {
       selectedExercise = row.getAttribute("data-exercise");
       select.value = selectedExercise;
@@ -628,9 +1110,15 @@ function safeMetric(value) {
 }
 
 function plotMetric(elementId, title, x, y, yLabel) {
+  const container = document.getElementById(elementId);
+  if (!container) return;
+
+  const plotId = `${elementId}-plot`;
+  container.innerHTML = createChartMarkup(plotId, title);
+
   const isKgChart = yLabel === "kg";
 
-  Plotly.newPlot(elementId, [{
+  Plotly.newPlot(plotId, [{
     x,
     y,
     mode: "lines+markers",
@@ -643,6 +1131,8 @@ function plotMetric(elementId, title, x, y, yLabel) {
       dtick: isKgChart ? 5 : undefined
     }
   }, getPlotConfig());
+
+  attachChartActions(container);
 }
 
 function escapeHtml(value) {
@@ -656,13 +1146,14 @@ function escapeHtml(value) {
 
 window.addEventListener("resize", () => {
   const plotIds = [
-    "workoutsPerWeek",
-    "volumePerWeek",
-    "weightChart",
-    "chart-max",
-    "chart-best-set",
-    "chart-e1rm",
-    "chart-volume"
+    "workoutsPerWeekPlot",
+    "volumePerWeekPlot",
+    "weightChartPlot",
+    "muscleGroupVolumePlot",
+    "chart-max-plot",
+    "chart-best-set-plot",
+    "chart-e1rm-plot",
+    "chart-volume-plot"
   ];
 
   plotIds.forEach(id => {
