@@ -108,6 +108,16 @@ function epley(weight, reps) {
   return weight * (1 + reps / 30);
 }
 
+function isAssistedExercise(name) {
+  return /\(assisted\)/i.test(String(name));
+}
+
+function pickPerformanceValue(currentValue, nextValue, preferLower) {
+  if (!Number.isFinite(nextValue)) return currentValue;
+  if (!Number.isFinite(currentValue)) return nextValue;
+  return preferLower ? Math.min(currentValue, nextValue) : Math.max(currentValue, nextValue);
+}
+
 function movingAverage(values, windowSize) {
   const out = [];
   for (let i = 0; i < values.length; i++) {
@@ -452,6 +462,7 @@ function buildExerciseSummary() {
     const reps = Number(getValue(row, ["Wiederh.", "Reps"], 0)) || 0;
     const tonnage = weight * reps;
     const e1rm = epley(weight, reps);
+    const preferLowerPerformanceValues = isAssistedExercise(exercise);
 
     if (!perExercise.has(exercise)) {
       perExercise.set(exercise, {
@@ -481,9 +492,9 @@ function buildExerciseSummary() {
     }
 
     const dayRec = item.dayMap.get(dayKey);
-    dayRec.maxWeight = Math.max(dayRec.maxWeight ?? -Infinity, weight);
-    dayRec.bestSet = Math.max(dayRec.bestSet ?? -Infinity, tonnage);
-    dayRec.bestE1rm = Math.max(dayRec.bestE1rm ?? -Infinity, e1rm ?? -Infinity);
+    dayRec.maxWeight = pickPerformanceValue(dayRec.maxWeight, weight, preferLowerPerformanceValues);
+    dayRec.bestSet = pickPerformanceValue(dayRec.bestSet, tonnage, preferLowerPerformanceValues);
+    dayRec.bestE1rm = pickPerformanceValue(dayRec.bestE1rm, e1rm, preferLowerPerformanceValues);
     dayRec.totalVolume += tonnage;
   });
 
