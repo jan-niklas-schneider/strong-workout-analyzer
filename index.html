@@ -74,8 +74,14 @@
       <div id="status" class="status"></div>
     </section>
 
-    <section>
-      <h2>Overview</h2>
+    <nav class="analysis-nav" aria-label="Analysis navigation">
+      <a href="#general-analysis">General</a>
+      <a href="#muscle-group-analysis">Muscle Groups</a>
+      <a href="#exercise-analysis">Exercises</a>
+    </nav>
+
+    <section id="general-analysis" class="analysis-section">
+      <h2>General</h2>
 
       <div class="overview-grid">
         <div class="grid two">
@@ -84,12 +90,19 @@
         </div>
 
         <div id="weightChart" class="card chart hidden"></div>
+      </div>
+    </section>
+
+    <section id="muscle-group-analysis" class="analysis-section">
+      <h2>Muscle Groups</h2>
+
+      <div class="overview-grid">
         <div id="muscleGroupVolume" class="card chart hidden"></div>
         <div id="muscleGroupFrequency" class="card chart hidden"></div>
       </div>
     </section>
 
-    <section>
+    <section id="exercise-analysis" class="analysis-section">
       <h2>Exercises</h2>
 
       <div class="exercise-layout">

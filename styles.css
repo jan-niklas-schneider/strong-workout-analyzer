@@ -9,6 +9,10 @@ body {
   color: #111827;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 .page {
   max-width: 1200px;
   margin: 0 auto;
@@ -145,6 +149,43 @@ button:hover {
 .status {
   color: #4b5563;
   min-height: 20px;
+}
+
+.analysis-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(17, 24, 39, 0.08);
+  overflow-x: auto;
+}
+
+.analysis-nav a {
+  flex: 0 0 auto;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #4b5563;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.analysis-nav a:hover,
+.analysis-nav a:focus-visible {
+  background: #f3f4f6;
+  color: #111827;
+  outline: none;
+}
+
+.analysis-section {
+  display: grid;
+  gap: 14px;
+  scroll-margin-top: 72px;
 }
 
 /* === GRID SYSTEM (KONSISTENT) === */

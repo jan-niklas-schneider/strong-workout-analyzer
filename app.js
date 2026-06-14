@@ -157,6 +157,29 @@ function initFilePickers() {
   });
 }
 
+function getPlotIds() {
+  return [
+    "workoutsPerWeekPlot",
+    "volumePerWeekPlot",
+    "weightChartPlot",
+    "muscleGroupVolumePlot",
+    "muscleGroupFrequencyPlot",
+    "chart-max-plot",
+    "chart-best-set-plot",
+    "chart-e1rm-plot",
+    "chart-volume-plot"
+  ];
+}
+
+function resizePlots(root = document) {
+  getPlotIds().forEach(id => {
+    const el = root.getElementById ? root.getElementById(id) : root.querySelector(`#${id}`);
+    if (el) {
+      Plotly.Plots.resize(el);
+    }
+  });
+}
+
 document.getElementById("analyzeBtn").addEventListener("click", analyzeFiles);
 initFilePickers();
 
@@ -197,6 +220,7 @@ async function analyzeFiles() {
 
   renderOverview();
   renderExerciseTable();
+  requestAnimationFrame(() => resizePlots());
 
   const workoutCount = countWorkouts(workoutsData);
 
@@ -1309,22 +1333,5 @@ function escapeHtml(value) {
 }
 
 window.addEventListener("resize", () => {
-  const plotIds = [
-    "workoutsPerWeekPlot",
-    "volumePerWeekPlot",
-    "weightChartPlot",
-    "muscleGroupVolumePlot",
-    "muscleGroupFrequencyPlot",
-    "chart-max-plot",
-    "chart-best-set-plot",
-    "chart-e1rm-plot",
-    "chart-volume-plot"
-  ];
-
-  plotIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      Plotly.Plots.resize(el);
-    }
-  });
+  resizePlots();
 });
