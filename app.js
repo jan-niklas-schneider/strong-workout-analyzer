@@ -27,10 +27,41 @@ const MUSCLE_GROUP_PATTERNS = [
   { name: "Core", patterns: ["plank", "situp", "abs", "crunch", "core", "twist", "leg raise"] }
 ];
 
+const DEFAULT_MUSCLE_GROUP_CONFIG = {
+  exerciseOverrides: {},
+  groups: [
+    { name: "Chest", patterns: ["bench", "chest", "fly", "bank"] },
+    { name: "Back", patterns: ["row", "zug", "pull", "lat", "deadlift", "kreuz", "back"] },
+    { name: "Legs", patterns: ["leg press", "calf raise", "squat", "beinpresse", "beinstreck", "leg extension", "leg curl", "lunge"] },
+    { name: "Shoulders", patterns: ["shoulder", "military", "deltoid", "seitheben", "frontheben", "arnold"] },
+    { name: "Arms", patterns: ["curl", "bizeps", "trizeps", "dip", "hammer", "skullcrusher", "triceps", "biceps"] },
+    { name: "Core", patterns: ["abdominal", "plank", "situp", "abs", "crunch", "core", "twist", "leg raise"] }
+  ]
+};
+
+const MUSCLE_GROUP_CONFIG = window.MUSCLE_GROUP_CONFIG || DEFAULT_MUSCLE_GROUP_CONFIG;
+
+function normalizeExerciseName(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 function detectMuscleGroup(exercise) {
-  const name = String(exercise).toLowerCase();
-  for (const group of MUSCLE_GROUP_PATTERNS) {
-    if (group.patterns.some(pattern => name.includes(pattern))) {
+  const name = normalizeExerciseName(exercise);
+  const overrides = MUSCLE_GROUP_CONFIG.exerciseOverrides || {};
+  const directMatch = overrides[name];
+
+  if (directMatch) {
+    return directMatch;
+  }
+
+  for (const group of MUSCLE_GROUP_CONFIG.groups || []) {
+    const patterns = group.patterns || [];
+    if (patterns.some(pattern => name.includes(normalizeExerciseName(pattern)))) {
       return group.name;
     }
   }
@@ -1047,7 +1078,7 @@ function compareSummaryValues(a, b, key) {
   if (valueA === null || valueA === undefined) return 1;
   if (valueB === null || valueB === undefined) return -1;
 
-  if (key === "name") {
+  if (key === "name" || key === "muscleGroup") {
     return String(valueA).localeCompare(String(valueB));
   }
 
@@ -1127,6 +1158,7 @@ function buildExerciseSummary() {
 
     return {
       name,
+      muscleGroup: detectMuscleGroup(name),
       count: item.count,
       lastDate: item.lastDate ? formatDate(item.lastDate) : "",
       lastMax: latest && Number.isFinite(latest.maxWeight) ? latest.maxWeight : null,
@@ -1208,6 +1240,7 @@ function renderExerciseTable() {
         <thead>
           <tr>
             <th data-sort-key="name">Exercise${getSortIndicator("name")}</th>
+            <th data-sort-key="muscleGroup">Muscle Group${getSortIndicator("muscleGroup")}</th>
             <th data-sort-key="count">Sets${getSortIndicator("count")}</th>
             <th data-sort-key="lastDate">Last entry${getSortIndicator("lastDate")}</th>
             <th data-sort-key="lastMax">Latest max${getSortIndicator("lastMax")}</th>
@@ -1218,6 +1251,7 @@ function renderExerciseTable() {
           ${summary.map((ex) => `
             <tr data-exercise="${escapeHtml(ex.name)}" class="${ex.name === selectedExercise ? "active" : ""}">
               <td>${escapeHtml(ex.name)}</td>
+              <td>${escapeHtml(ex.muscleGroup)}</td>
               <td>${ex.count}</td>
               <td>${escapeHtml(ex.lastDate)}</td>
               <td>${ex.lastMax !== null ? `${ex.lastMax.toFixed(1)} kg` : "—"}</td>
