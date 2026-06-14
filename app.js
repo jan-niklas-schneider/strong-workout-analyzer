@@ -528,7 +528,7 @@ function getBasePlotLayout(title, yLabel) {
     xaxis: {
       title: mobile ? "" : "Date",
       automargin: true,
-      tickangle: -45
+      tickangle: 0
     },
     yaxis: {
       title: yLabel,
@@ -537,6 +537,70 @@ function getBasePlotLayout(title, yLabel) {
     legend: {
       orientation: "h"
     }
+  };
+}
+
+function getSparseTickValues(values, maxTicks) {
+  if (values.length <= maxTicks) return values;
+
+  const step = Math.ceil(values.length / maxTicks);
+  return values.filter((_, index) => index % step === 0 || index === values.length - 1);
+}
+
+function formatShortMonthYear(value) {
+  const date = parseDate(value);
+  if (!date) return String(value);
+
+  return `${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getFullYear()).slice(-2)}`;
+}
+
+function getDateTickValues(values, maxTicks) {
+  const sortedDates = Array.from(new Set(values))
+    .filter(value => parseDate(value))
+    .sort();
+
+  const monthlyTicks = [];
+  const seenMonths = new Set();
+
+  sortedDates.forEach(value => {
+    const date = parseDate(value);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    if (!seenMonths.has(monthKey)) {
+      seenMonths.add(monthKey);
+      monthlyTicks.push(value);
+    }
+  });
+
+  const ticks = monthlyTicks.length > 1 ? monthlyTicks : sortedDates;
+  return getSparseTickValues(ticks, maxTicks);
+}
+
+function getDateXAxis(values, title = "Date", maxTicks = isMobile() ? 5 : 8) {
+  const tickvals = getDateTickValues(values, maxTicks);
+
+  return {
+    title: isMobile() ? "" : { text: title, standoff: 14 },
+    automargin: true,
+    tickangle: 0,
+    tickmode: "array",
+    tickvals,
+    ticktext: tickvals.map(formatShortMonthYear)
+  };
+}
+
+function getWeekXAxis(weeks, maxTicks = isMobile() ? 5 : 8) {
+  return getDateXAxis(weeks, "Week", maxTicks);
+}
+
+function getSideLegendLayout() {
+  return {
+    orientation: isMobile() ? "h" : "v",
+    x: isMobile() ? 0.5 : 1.02,
+    xanchor: isMobile() ? "center" : "left",
+    y: isMobile() ? -0.42 : 1,
+    yanchor: "top",
+    font: { size: 10 },
+    itemsizing: "constant"
   };
 }
 
@@ -596,11 +660,7 @@ function renderOverview() {
     hovertemplate: "%{x}<br>Workouts: %{y}<extra></extra>"
   }], {
     ...getBasePlotLayout("Workouts per Week", "Workouts"),
-    xaxis: {
-      title: isMobile() ? "" : "Week",
-      automargin: true,
-      tickangle: -45
-    },
+    xaxis: getWeekXAxis(weeks, 5),
     shapes: weeks.length ? [
       {
         type: "line",
@@ -637,16 +697,13 @@ function renderOverview() {
     hovertemplate: "%{x}<br>Volume: %{y:.0f}<extra></extra>"
   }], {
     ...getBasePlotLayout("Training Volume per Week", "kg × reps"),
-    xaxis: {
-      title: isMobile() ? "" : "Week",
-      automargin: true,
-      tickangle: -45
-    }
+    xaxis: getWeekXAxis(weeks, 5)
   }, getPlotConfig());
   attachChartActions(volumeCard);
 
   renderWeightChart(bounds);
   renderMuscleGroupChart(overviewRows);
+  renderMuscleGroupFrequencyChart(overviewRows);
 }
 
 function buildMuscleGroupSummary(rows = workoutsData) {
@@ -675,6 +732,62 @@ function buildMuscleGroupSummary(rows = workoutsData) {
     .sort((a, b) => b.volume - a.volume);
 }
 
+function buildMuscleGroupWeeklyFrequency(rows = workoutsData) {
+  const weeklyGroups = new Map();
+  const groupTotals = new Map();
+
+  rows.forEach(row => {
+    const date = parseDate(getValue(row, ["Datum", "Date"]));
+    const exercise = String(getValue(row, ["Name der Ãœbung", "Exercise Name"], "")).trim();
+    if (!date || !exercise) return;
+
+    const weekKey = formatDate(weekStartMonday(date));
+    const dayKey = formatDate(date);
+    const workoutName = String(getValue(row, ["Workout-Name", "Workout Name"], dayKey));
+    const sessionKey = `${dayKey}||${workoutName}`;
+    const groupName = detectMuscleGroup(exercise);
+
+    if (!weeklyGroups.has(weekKey)) {
+      weeklyGroups.set(weekKey, new Map());
+    }
+
+    const groups = weeklyGroups.get(weekKey);
+    if (!groups.has(groupName)) {
+      groups.set(groupName, new Set());
+    }
+
+    groups.get(groupName).add(sessionKey);
+  });
+
+  weeklyGroups.forEach(groups => {
+    groups.forEach((sessions, groupName) => {
+      groupTotals.set(groupName, (groupTotals.get(groupName) || 0) + sessions.size);
+    });
+  });
+
+  return {
+    weeks: Array.from(weeklyGroups.keys()).sort(),
+    groups: Array.from(groupTotals.keys())
+      .sort((a, b) => groupTotals.get(b) - groupTotals.get(a) || a.localeCompare(b)),
+    weeklyGroups
+  };
+}
+
+function getLatestMuscleGroupFrequencySummary(weeks, groups, weeklyGroups) {
+  const latestWeek = weeks[weeks.length - 1];
+  if (!latestWeek) return "";
+
+  const parts = groups
+    .map(groupName => ({
+      name: groupName,
+      count: weeklyGroups.get(latestWeek)?.get(groupName)?.size || 0
+    }))
+    .filter(item => item.count > 0)
+    .map(item => `${item.name} ${item.count}x`);
+
+  return parts.length ? `Latest week (${latestWeek}): ${parts.join(", ")}` : "";
+}
+
 function renderMuscleGroupChart(rows = workoutsData) {
   const container = document.getElementById("muscleGroupVolume");
   const summary = buildMuscleGroupSummary(rows);
@@ -701,8 +814,56 @@ function renderMuscleGroupChart(rows = workoutsData) {
     xaxis: {
       title: isMobile() ? "" : "Muscle Group",
       automargin: true,
-      tickangle: -45
+      tickangle: 0
     }
+  }, getPlotConfig());
+
+  attachChartActions(container);
+}
+
+function renderMuscleGroupFrequencyChart(rows = workoutsData) {
+  const container = document.getElementById("muscleGroupFrequency");
+  const { weeks, groups, weeklyGroups } = buildMuscleGroupWeeklyFrequency(rows);
+
+  if (!weeks.length || !groups.length) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+    return;
+  }
+
+  container.classList.remove("hidden");
+  container.innerHTML = createChartMarkup("muscleGroupFrequencyPlot", "Muscle Groups: Weekly Frequency");
+
+  const latestSummary = getLatestMuscleGroupFrequencySummary(weeks, groups, weeklyGroups);
+  if (latestSummary) {
+    container.querySelector(".chart-plot").insertAdjacentHTML(
+      "beforebegin",
+      `<p class="chart-note">${escapeHtml(latestSummary)}</p>`
+    );
+  }
+
+  const traces = groups.map(groupName => ({
+    x: weeks,
+    y: weeks.map(week => weeklyGroups.get(week)?.get(groupName)?.size || 0),
+    name: groupName,
+    type: "bar",
+    hovertemplate: `%{x}<br>${groupName}: %{y} workout(s)<extra></extra>`
+  }));
+
+  Plotly.newPlot("muscleGroupFrequencyPlot", traces, {
+    ...getBasePlotLayout("Muscle Groups: Weekly Frequency", "Workouts"),
+    barmode: "group",
+    margin: isMobile()
+      ? { l: 50, r: 20, t: 60, b: 130 }
+      : { l: 60, r: 130, t: 60, b: 105 },
+    xaxis: getWeekXAxis(weeks, isMobile() ? 5 : 9),
+    yaxis: {
+      title: "Workouts",
+      automargin: true,
+      rangemode: "tozero",
+      dtick: 1
+    },
+    legend: getSideLegendLayout()
   }, getPlotConfig());
 
   attachChartActions(container);
@@ -819,12 +980,14 @@ function renderWeightChart(bounds) {
 
   Plotly.newPlot("weightChartPlot", traces, {
     ...getBasePlotLayout("Bodyweight", "kg"),
+    margin: isMobile()
+      ? { l: 50, r: 20, t: 60, b: 130 }
+      : { l: 60, r: 150, t: 60, b: 80 },
     xaxis: {
-      title: isMobile() ? "" : "Date",
-      automargin: true,
-      tickangle: isMobile() ? -30 : 0,
+      ...getDateXAxis([...dates, ...forecastDates], "Date", isMobile() ? 5 : 9),
       range: [dates[0], forecastDates[forecastDates.length - 1]]
     },
+    legend: getSideLegendLayout(),
     shapes: [{
       type: "line",
       x0: dates[dates.length - 1],
@@ -1125,6 +1288,7 @@ function plotMetric(elementId, title, x, y, yLabel) {
     hovertemplate: "%{x}<br>%{y:.2f}<extra></extra>"
   }], {
     ...getBasePlotLayout(title, yLabel),
+    xaxis: getDateXAxis(x, "Date", isMobile() ? 4 : 6),
     yaxis: {
       ...getBasePlotLayout(title, yLabel).yaxis,
       tickmode: isKgChart ? "linear" : undefined,
@@ -1150,6 +1314,7 @@ window.addEventListener("resize", () => {
     "volumePerWeekPlot",
     "weightChartPlot",
     "muscleGroupVolumePlot",
+    "muscleGroupFrequencyPlot",
     "chart-max-plot",
     "chart-best-set-plot",
     "chart-e1rm-plot",
